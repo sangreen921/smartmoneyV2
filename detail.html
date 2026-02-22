@@ -452,11 +452,17 @@ location.href='/';
 async saveNotification(){
 if(!this.notification.chatId){alert('请输入Chat ID');return;}
 const token=localStorage.getItem('token');
+const payload={
+telegram_chat_id:this.notification.chatId,
+notify_balance_change:this.notification.notifyBalance,
+notify_new_trades:this.notification.notifyTrades
+};
 const res=await fetch(`/api/notifications/${this.traderId}`,{
 method:'POST',
 headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
-body:JSON.stringify(this.notification)
+body:JSON.stringify(payload)
 });
+if(res.status===401){localStorage.removeItem('token');location.href='/login.html';return;}
 const data=await res.json();
 if(data.success){
 this.notificationExists=true;
@@ -468,19 +474,26 @@ alert(data.error||'保存失败');
 
 async testNotification(){
 const token=localStorage.getItem('token');
-await fetch(`/api/notifications/${this.traderId}/test`,{
+const res=await fetch(`/api/notifications/${this.traderId}/test`,{
 method:'POST',
 headers:{'Authorization':`Bearer ${token}`}
 });
+if(res.status===401){localStorage.removeItem('token');location.href='/login.html';return;}
+const data=await res.json();
+if(data.success){
 alert('测试消息已发送');
+}else{
+alert(data.error||'测试消息发送失败');
+}
 },
 
 async deleteNotification(){
 const token=localStorage.getItem('token');
-await fetch(`/api/notifications/${this.traderId}`,{
+const res=await fetch(`/api/notifications/${this.traderId}`,{
 method:'DELETE',
 headers:{'Authorization':`Bearer ${token}`}
 });
+if(res.status===401){localStorage.removeItem('token');location.href='/login.html';return;}
 this.notificationExists=false;
 alert('已删除');
 }
