@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>管理员后台 - 支付确认</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: sans-serif;
+            padding: 40px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+        }
+        h1 { margin-bottom: 30px; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 12px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        th {
+            background: #f0f0f0;
+            font-weight: 600;
+        }
+        button {
+            padding: 8px 16px;
+            background: #52c41a;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover { background: #389e0d; }
+        .status-pending { color: #faad14; font-weight: 600; }
+        .status-paid { color: #52c41a; font-weight: 600; }
+        .login-form {
+            max-width: 400px;
+            margin: 100px auto;
+        }
+        .login-form input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- 登录表单 -->
+        <div v-if="!isLoggedIn" class="login-form">
+            <h2>管理员登录</h2>
+            <input v-model="email" type="email" placeholder="管理员邮箱" />
+            <input v-model="password" type="password" placeholder="密码" @keyup.enter="login" />
+            <button @click="login" style="width:100%;">登录</button>
+        </div>
+
+        <!-- 订单列表 -->
+        <div v-else class="container">
+            <h1>待确认支付订单</h1>
+            
+            <button @click="loadOrders" style="margin-bottom:20px;">
+                刷新列表
+            </button>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>订单号</th>
+                        <th>用户邮箱</th>
+                        <th>套餐</th>
+                        <th>金额</th>
+                        <th>创建时间</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="order in orders" :key="order.order_id">
+                        <td><code>{{ order.order_id }}</code></td>
+                        <td>{{ order.user_email }}</td>
+                        <td>{{ order.plan_code }}</td>
+                        <td>${{ order.amount_usd }}</td>
+                        <td>{{ order.created_at }}</td>
+                        <td>
+                            <span :class="'status-' + order.status">
+                                {{ order.status === 'pending' ? '待确认' : '已支付' }}
+                            </span>
+                        </td>
+                        <td>
+                            <button v-if="order.status === 'pending'" 
+                                    @click="confirmPayment(order.order_id)">
+                                确认支付
+                            </button>
+                            <span v-else>-</span>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <p v-if="orders.length === 0" style="text-align:center; padding:40px; color:#999;">
+                暂无待确认订单
+            </p>
+        </div>
+    </div>
+
+    <script>
+    const { createApp } = Vue;
+    createApp({
+        data() {
+            return {
+                isLoggedIn: false,
+                email: '',
+                password: '',
+                token: '',
+                orders: []
+            }
+        },
+        mounted() {
+            const token = localStorage.getItem('admin_token');
+            if (token) {
+                this.token = token;
+                this.isLoggedIn = true;
+                this.loadOrders();
+            }
+        },
+        methods: {
+            async login() {
+                try {
+                    const res = await fetch('/api/auth/login', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            email: this.email,
+                            password: this.password
+                        })
+                    });
+                    
+                    const data = await res.json();
+                    if (data.success) {
+                        this.token = data.token;
+                        localStorage.setItem('admin_token', data.token);
+                        this.isLoggedIn = true;
+                        this.loadOrders();
+                    } else {
+                        alert('登录失败: ' + data.error);
+                    }
+                } catch (err) {
+                    alert('网络错误: ' + err.message);
+                }
+            },
+            
+            async loadOrders() {
+                try {
+                    const res = await fetch('/api/admin/payments/pending', {
+                        headers: {'Authorization': `Bearer ${this.token}`}
+                    });
+                    
+                    const data = await res.json();
+                    if (data.success) {
+                        this.orders = data.orders;
+                    } else {
+                        alert('加载失败: ' + data.error);
+                    }
+                } catch (err) {
+                    alert('网络错误: ' + err.message);
+                }
+            },
+            
+            async confirmPayment(orderId) {
+                if (!confirm(`确认订单 ${orderId} 已收到付款？\n\n确认后将自动升级用户账户`)) {
+                    return;
+                }
+                
+                try {
+                    const res = await fetch('/api/admin/payment/confirm', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.token}`
+                        },
+                        body: JSON.stringify({ order_id: orderId })
+                    });
+                    
+                    const data = await res.json();
+                    if (data.success) {
+                        alert('✅ ' + data.message);
+                        this.loadOrders();
+                    } else {
+                        alert('确认失败: ' + data.error);
+                    }
+                } catch (err) {
+                    alert('网络错误: ' + err.message);
+                }
+            }
+        }
+    }).mount('#app');
+    </script>
+</body>
+</html>

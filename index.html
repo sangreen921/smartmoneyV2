@@ -1,0 +1,1459 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Money Pro | 实时监控系统</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-body: #f0f2f5;
+            --bg-panel: #ffffff;
+            --primary: #2f54eb;
+            --success: #00b42a;
+            --danger: #f53f3f;
+            --text-main: #1d2129;
+            --text-sub: #4e5969;
+            --text-dis: #86909c;
+            --border-color: #e5e6eb;
+            --font-mono: 'JetBrains Mono', monospace;
+            --shadow-flat: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background: var(--bg-body);
+            color: var(--text-main);
+            font-size: 13px;
+        }
+
+        #app { display: flex; flex-direction: column; min-height: 100vh; }
+
+        /* --- Header --- */
+        header {
+            background: #001529;
+            color: white;
+            padding: 0 24px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .logo-box { display: flex; align-items: center; gap: 10px; }
+        .logo-icon { 
+            background: var(--primary); 
+            width: 28px; height: 28px; 
+            border-radius: 4px; 
+            display: grid; place-items: center; 
+            font-weight: bold;
+        }
+        .logo-text { font-size: 16px; font-weight: 700; letter-spacing: 0.5px; }
+
+        .header-stats { display: flex; gap: 32px; }
+        .h-stat { text-align: right; }
+        .h-stat-label { font-size: 11px; color: #86909c; display: block; }
+        .h-stat-value { font-family: var(--font-mono); font-size: 15px; color: #ffffff; font-weight: 500; }
+        .auth-area { display: flex; align-items: center; gap: 12px; }
+
+        .plan-badge {
+            background: #faad14; color: #000; font-size: 10px; font-weight: 700;
+            padding: 2px 7px; border-radius: 10px; cursor: pointer;
+            letter-spacing: 0.5px;
+        }
+        .plan-badge:hover { opacity: 0.85; }
+        .quota-text { color: #aaa; font-size: 12px; font-family: var(--font-mono); }
+        .upgrade-btn {
+            background: #faad14; color: #000; border: none; padding: 4px 12px;
+            border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer;
+        }
+        .upgrade-btn:hover { background: #ffc53d; }
+        
+        .telegram-btn {
+            background: #0088cc; color: white; border: none; padding: 4px 12px;
+            border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer;
+            margin-right: 8px;
+        }
+        .telegram-btn:hover { background: #006699; }
+
+        /* 升级弹窗 */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 2000;
+        }
+        .upgrade-modal {
+            background: #fff; border-radius: 12px; padding: 28px;
+            width: 780px; max-width: 95vw; max-height: 90vh; overflow-y: auto;
+        }
+        .upgrade-modal-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 16px;
+        }
+        .upgrade-modal-header h2 { font-size: 18px; }
+        .modal-close {
+            background: none; border: none; font-size: 18px;
+            cursor: pointer; color: #999; padding: 4px 8px;
+        }
+        .current-usage {
+            background: #f0f5ff; border-radius: 6px; padding: 10px 16px;
+            margin-bottom: 20px; display: flex; gap: 24px; font-size: 13px;
+        }
+        .plans-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+            margin-bottom: 16px;
+        }
+        @media (max-width: 680px) { .plans-grid { grid-template-columns: repeat(2, 1fr); } }
+        .plan-card {
+            border: 2px solid #e5e6eb; border-radius: 10px; padding: 16px;
+            display: flex; flex-direction: column; gap: 10px;
+            transition: border-color 0.2s;
+        }
+        .plan-card:hover { border-color: var(--primary); }
+        .plan-card.plan-current { border-color: #52c41a; background: #f6ffed; }
+        .plan-name { font-weight: 700; font-size: 15px; }
+        .plan-price { font-size: 22px; font-weight: 800; color: var(--primary); }
+        .plan-price small { font-size: 12px; font-weight: 400; color: #888; }
+        .plan-features { list-style: none; font-size: 12px; color: #555; padding-left: 0; }
+        .plan-features li::before { content: "✓ "; color: #52c41a; font-weight: 700; }
+        .plan-select-btn {
+            border: none; padding: 8px; border-radius: 6px;
+            font-weight: 600; cursor: pointer; font-size: 13px; margin-top: auto;
+        }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-primary:hover { background: #1d39c4; }
+        .btn-outline { background: transparent; border: 1px solid var(--primary) !important; color: var(--primary); }
+        .plan-current-label { text-align: center; color: #52c41a; font-weight: 600; font-size: 13px; padding: 8px 0; }
+        .upgrade-note { font-size: 11px; color: #aaa; text-align: center; }
+        
+        /* ✅ 商业化样式 - 优化简化版 */
+        .sample-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #faad14;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            z-index: 10;
+        }
+        
+        /* 简化版支付弹窗 */
+        .payment-modal-v2 {
+            background: white;
+            border-radius: 16px;
+            padding: 0;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            padding: 24px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-header h2 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #999;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+        }
+        
+        .modal-close:hover {
+            color: #333;
+        }
+        
+        /* 套餐信息区 */
+        .plan-info-section {
+            padding: 24px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        }
+        
+        .plan-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #333;
+        }
+        
+        .plan-icon {
+            font-size: 24px;
+        }
+        
+        .plan-price {
+            font-size: 36px;
+            font-weight: 800;
+            color: #1890ff;
+            margin-bottom: 16px;
+        }
+        
+        .plan-price small {
+            font-size: 16px;
+            font-weight: 400;
+            color: #888;
+        }
+        
+        .plan-features-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .plan-features-list li {
+            padding: 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: #333;
+        }
+        
+        .check-icon {
+            font-size: 16px;
+        }
+        
+        .divider-line {
+            height: 1px;
+            background: #eee;
+        }
+        
+        /* 支付区域 */
+        .payment-area-v2 {
+            padding: 24px;
+        }
+        
+        .payment-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin: 0 0 20px 0;
+            color: #333;
+        }
+        
+        .qr-section-v2 {
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .qr-box-v2 {
+            display: inline-block;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            background: white;
+        }
+        
+        .qr-hint {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .address-section-v2 {
+            margin: 20px 0;
+        }
+        
+        .field-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            color: #333;
+        }
+        
+        .address-input-group-v2 {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .address-field-v2 {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #d9d9d9;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 13px;
+            background: #fafafa;
+        }
+        
+        .copy-btn-v2 {
+            padding: 12px 20px;
+            background: #52c41a;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .copy-btn-v2:hover {
+            background: #389e0d;
+        }
+        
+        .user-wallet-section-v2 {
+            margin: 20px 0;
+        }
+        
+        .wallet-input-v2 {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #d9d9d9;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .wallet-input-v2:focus {
+            border-color: #1890ff;
+            outline: none;
+        }
+        
+        .required-mark {
+            color: #ff4d4f;
+        }
+        
+        .input-hint {
+            display: block;
+            margin-top: 6px;
+            color: #999;
+            font-size: 12px;
+        }
+        
+        .order-info-v2 {
+            background: #f6ffed;
+            border: 1px solid #b7eb8f;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 20px 0;
+        }
+        
+        .order-info-v2 p {
+            margin: 6px 0;
+            font-size: 14px;
+        }
+        
+        .notice-text {
+            color: #fa8c16;
+            font-weight: 500;
+        }
+        
+        .btn-submit-payment-v2 {
+            width: 100%;
+            padding: 14px;
+            background: #52c41a;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background 0.3s;
+        }
+        
+        .btn-submit-payment-v2:hover {
+            background: #389e0d;
+        }
+        
+        .payment-success-v2 {
+            background: #f6ffed;
+            border: 1px solid #b7eb8f;
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .success-icon {
+            font-size: 18px;
+            font-weight: 600;
+            color: #52c41a;
+            margin-bottom: 8px;
+        }
+        
+        .payment-success-v2 p {
+            margin: 8px 0;
+            font-size: 14px;
+        }
+        
+        @media (max-width: 680px) {
+            .payment-modal-v2 {
+                max-width: 95%;
+            }
+            
+            .plan-price {
+                font-size: 28px;
+            }
+        }
+        
+        /* Vue加载时隐藏未编译内容 */
+        [v-cloak] {
+            display: none !important;
+        }
+        
+        .user-info { display: flex; align-items: center; gap: 10px; }
+        .user-avatar { width: 32px; height: 32px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.3); }
+        .user-name { font-size: 13px; }
+        .login-btn, .logout-btn {
+            padding: 6px 14px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            text-decoration: none;
+        }
+        .login-btn:hover, .logout-btn:hover { background: rgba(255,255,255,0.2); }
+
+
+        /* --- Main Layout --- */
+        .container {
+            max-width: 1680px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 16px;
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 16px;
+        }
+
+        .top-bar {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        /* --- Components --- */
+        .card {
+            background: var(--bg-panel);
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .card-title { font-size: 14px; font-weight: 600; color: var(--text-main); }
+        .card-badge { 
+            background: #f2f3f5; 
+            padding: 2px 8px; 
+            border-radius: 10px; 
+            font-size: 11px; 
+            color: var(--text-sub); 
+        }
+
+        /* --- Trader List --- */
+        .trader-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
+            gap: 12px;
+            padding: 16px;
+        }
+
+        .trader-item {
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .trader-item:hover {
+            border-color: var(--primary);
+            box-shadow: var(--shadow-flat);
+        }
+
+        .trader-main-info {
+            padding: 12px;
+            display: flex;
+            gap: 12px;
+            cursor: pointer;
+            background: #fafafa;
+        }
+
+        .avatar {
+            width: 40px; height: 40px;
+            background: #e8ffea;
+            border-radius: 50%;
+            display: grid; place-items: center;
+            color: var(--success);
+            font-weight: bold;
+            flex-shrink: 0;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+        .avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+        .trader-meta { flex: 1; min-width: 0; }
+        .t-name { font-weight: 600; font-size: 14px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .t-id { font-family: var(--font-mono); font-size: 11px; color: var(--text-dis); }
+
+        .t-stats { display: flex; gap: 16px; text-align: right; }
+        .t-stat-val { display: block; font-family: var(--font-mono); font-weight: 600; font-size: 14px; }
+        .t-stat-lbl { font-size: 10px; color: var(--text-dis); }
+
+        /* --- Position Table In Trader Card --- */
+        .pos-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .pos-table th { text-align: left; padding: 6px 12px; color: var(--text-dis); font-weight: normal; background: #fff; border-bottom: 1px solid var(--border-color); }
+        .pos-table td { padding: 8px 12px; border-bottom: 1px dotted var(--border-color); }
+        
+        .side-tag {
+            padding: 2px 4px;
+            border-radius: 2px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        .side-long { background: #e8ffea; color: var(--success); }
+        .side-short { background: #fff1f0; color: var(--danger); }
+
+        /* --- Activity Feed (Right Sidebar) --- */
+        .activity-scroll { height: calc(100vh - 160px); overflow-y: auto; padding: 0 12px; }
+        .activity-node {
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border-color);
+            position: relative;
+        }
+        .act-header { display: flex; justify-content: space-between; margin-bottom: 6px; align-items: center;}
+        .act-trader { font-weight: 600; font-size: 12px; color: var(--primary); }
+        .act-time { font-size: 11px; color: var(--text-dis); }
+        
+        .act-body {
+            background: #f8f9fa;
+            padding: 8px;
+            border-radius: 4px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+        }
+        .act-kv { font-size: 11px; }
+        .act-v { font-family: var(--font-mono); font-weight: 500; float: right; }
+
+        /* --- Analysis Table --- */
+        .analysis-container { grid-column: 1 / -1; }
+        .main-table { width: 100%; border-collapse: collapse; }
+        .main-table th { background: #f7f8fa; padding: 12px; text-align: left; font-size: 12px; color: var(--text-sub); border-bottom: 2px solid var(--border-color); }
+        .main-table td { padding: 12px; border-bottom: 1px solid var(--border-color); font-family: var(--font-mono); }
+
+        .progress-mini {
+            width: 120px;
+            height: 6px;
+            background: #f0f0f0;
+            border-radius: 3px;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* --- Buttons & Inputs --- */
+        .btn {
+            padding: 6px 16px;
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: #597ef7; }
+        .btn-outline { border-color: var(--border-color); background: white; color: var(--text-sub); }
+        .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+
+        /* --- Modal --- */
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: grid; place-items: center; z-index: 2000; }
+        .modal-body { background: white; width: 400px; padding: 24px; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .form-input { 
+            width: 100%; padding: 10px; border: 1px solid var(--border-color); 
+            border-radius: 4px; margin: 16px 0; outline: none; font-family: var(--font-mono);
+        }
+        .form-input:focus { border-color: var(--primary); }
+
+        .positive { color: var(--success); }
+        .negative { color: var(--danger); }
+        
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 10px; }
+    </style>
+</head>
+<body>
+    <div id="app" v-cloak>
+        <header>
+            <div class="logo-box">
+                <div class="logo-icon">M</div>
+                <div class="logo-text">SMART MONEY PRO <span style="font-size: 10px; font-weight: normal; opacity: 0.6;"></span></div>
+            </div>
+            <div class="header-stats">
+                <div class="h-stat">
+                    <span class="h-stat-label">MONITORED</span>
+                    <span class="h-stat-value">{{ stats.total_traders }}</span>
+                </div>
+                <div class="h-stat">
+                    <span class="h-stat-label">POSITIONS</span>
+                    <span class="h-stat-value">{{ stats.total_positions }}</span>
+                </div>
+                <div class="h-stat">
+                    <span class="h-stat-label">TOTAL TRADES</span>
+                    <span class="h-stat-value">{{ stats.total_trades }}</span>
+                </div>
+            </div>
+        
+            <div class="auth-area">
+                <div v-if="currentUser" class="user-info">
+                    <img v-if="currentUser.avatar_url" :src="currentUser.avatar_url" class="user-avatar" />
+                    <span class="user-name">{{ currentUser.username || currentUser.email }}</span>
+                    <span class="plan-badge" @click="showUpgradeModal = true" title="点击升级套餐">
+                        {{ (currentUser.subscription_plan || 'free').toUpperCase() }}
+                    </span>
+                    <span v-if="usageStats" class="quota-text">
+                        {{ usageStats.traders.current }}/{{ usageStats.traders.limit }}
+                    </span>
+                    <button class="telegram-btn" @click="openTelegramSettings" title="Telegram通知设置">
+                        🔔 通知
+                    </button>
+                    <button class="upgrade-btn" @click="showUpgradeModal = true">升级</button>
+                    <button class="logout-btn" @click="logout">登出</button>
+                </div>
+                <a v-else href="/login.html" class="login-btn">登录</a>
+            </div>
+        </header>
+
+        <!-- 升级套餐弹窗 -->
+        <div v-if="showUpgradeModal" class="modal-overlay" @click.self="showUpgradeModal = false">
+            <div class="upgrade-modal">
+                <div class="upgrade-modal-header">
+                    <h2>选择订阅套餐</h2>
+                    <button class="modal-close" @click="showUpgradeModal = false">✕</button>
+                </div>
+                <div v-if="usageStats" class="current-usage">
+                    <span>当前套餐：<b>{{ (currentUser?.subscription_plan || 'free').toUpperCase() }}</b></span>
+                    <span>已用交易员：<b>{{ usageStats.traders.current }} / {{ usageStats.traders.limit }}</b></span>
+                </div>
+                <div class="plans-grid">
+                    <div v-for="plan in allPlans" :key="plan.code"
+                         class="plan-card"
+                         :class="{ 'plan-current': plan.code === (currentUser?.subscription_plan || 'free') }">
+                        <div class="plan-name">{{ plan.name }}</div>
+                        <div class="plan-price">
+                            <span v-if="plan.price_monthly === 0">免费</span>
+                            <span v-else-if="plan.code === 'annual'">${{ plan.price_monthly }}<small>/年</small></span>
+                            <span v-else>${{ plan.price_monthly }}<small>/月</small></span>
+                        </div>
+                        <ul class="plan-features">
+                            <li>交易员：最多 {{ plan.max_traders }} 个</li>
+                            <li>通知：每日 {{ plan.max_notifications_daily }} 次</li>
+                        </ul>
+                        <button v-if="plan.code !== (currentUser?.subscription_plan || 'free')"
+                                class="plan-select-btn"
+                                :class="plan.price_monthly === 0 ? 'btn-outline' : 'btn-primary'"
+                                @click="upgradePlan(plan.code)">
+                            {{ plan.price_monthly === 0 ? '降级' : '升级至此' }}
+                        </button>
+                        <div v-else class="plan-current-label">当前套餐</div>
+                    </div>
+                </div>
+                <p class="upgrade-note">* 演示模式：点击即刻生效，生产环境需接入支付系统</p>
+            </div>
+        </div>
+
+        <!-- ✅ 支付弹窗 - 优化简化版 -->
+        <div v-if="showPaymentModal" class="modal-overlay" @click.self="showPaymentModal = false">
+            <div class="payment-modal-v2">
+                <div class="modal-header">
+                    <h2>升级到年付版</h2>
+                    <button class="modal-close" @click="showPaymentModal = false">✕</button>
+                </div>
+                
+                <!-- 套餐信息 -->
+                <div class="plan-info-section">
+                    <div class="plan-title">
+                        <span class="plan-icon">📦</span>
+                        <span>年付版 (Annual Plan)</span>
+                    </div>
+                    <div class="plan-price">$12.99 <small>/年</small></div>
+                    
+                    <ul class="plan-features-list">
+                        <li><span class="check-icon">✅</span> 100个交易员</li>
+                        <li><span class="check-icon">✅</span> Telegram通知不限</li>
+                        <li><span class="check-icon">✅</span> 优先客户支持</li>
+                        <li><span class="check-icon">✅</span> 数据导出功能</li>
+                    </ul>
+                </div>
+                
+                <div class="divider-line"></div>
+                
+                <!-- 支付区域 -->
+                <div class="payment-area-v2">
+                    <h3 class="payment-title">💳 支付方式: USDT (TRC20)</h3>
+                    
+                    <!-- 二维码 -->
+                    <div class="qr-section-v2">
+                        <div class="qr-box-v2" v-if="orderId">
+                            <iframe :src="qrUrl" frameborder="0" width="200" height="200"></iframe>
+                        </div>
+                        <p class="qr-hint">扫码支付 12.99 USDT</p>
+                    </div>
+                    
+                    <!-- 收款地址 -->
+                    <div class="address-section-v2">
+                        <label class="field-label">收款地址:</label>
+                        <div class="address-input-group-v2">
+                            <input readonly value="TRXexampleAddressForUSDT12345678901234" class="address-field-v2" />
+                            <button @click="copyAddress" class="copy-btn-v2">复制</button>
+                        </div>
+                    </div>
+                    
+                    <!-- 用户钱包地址输入 -->
+                    <div class="user-wallet-section-v2">
+                        <label class="field-label">您的付款钱包地址 <span class="required-mark">*</span></label>
+                        <input v-model="userWallet" 
+                               placeholder="输入您的钱包地址（用于确认支付）" 
+                               class="wallet-input-v2" />
+                        <small class="input-hint">请输入您用于支付的钱包地址，以便系统确认</small>
+                    </div>
+                    
+                    <!-- 订单信息 -->
+                    <div v-if="orderId" class="order-info-v2">
+                        <p><strong>订单号:</strong> {{ orderId }}</p>
+                        <p class="notice-text">⚠️ 转账后系统将自动确认，升级立即生效</p>
+                    </div>
+                    
+                    <!-- 提交按钮 -->
+                    <button v-if="!orderId" 
+                            @click="createPaymentOrder" 
+                            class="btn-submit-payment-v2">
+                        确认已支付
+                    </button>
+                    <div v-else class="payment-success-v2">
+                        <p class="success-icon">✅ 订单已创建</p>
+                        <p>请使用上方地址完成转账</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <main class="container">
+            <div class="top-bar">
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-primary" @click="showAddModal = true"><b>+</b> 添加交易员</button>
+                    <button class="btn btn-outline" @click="refreshData">刷新同步</button>
+                </div>
+                <div class="card-badge" style="font-family: var(--font-mono);">LAST UPDATE: {{ new Date().toLocaleTimeString() }}</div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+                <section class="card">
+                    <div class="card-header">
+                        <div class="card-title">交易员队列 <span class="card-badge">{{ traders.length }}</span></div>
+                    </div>
+                    
+                    <div v-if="loading" style="padding: 40px; text-align: center; color: var(--text-dis);">正在同步数据...</div>
+                    
+                    <div v-else class="trader-grid">
+                        <div v-for="trader in traders" :key="trader.top_trader_id" class="trader-item">
+                            <!-- ✅ 样例数据标签 -->
+                            <div v-if="trader._isSample" class="sample-badge">样例数据</div>
+                            
+                            <div class="trader-main-info" @click="openDetail(trader.top_trader_id)">
+                                <div class="avatar">
+                                    <img v-if="trader.avatar_url" :src="trader.avatar_url">
+                                    <span v-else>{{ (trader.trader_name || '?')[0] }}</span>
+                                </div>
+                                <div class="trader-meta">
+                                    <span class="t-name">{{ trader.trader_name || 'Anonymous' }}</span>
+                                    <span class="t-id">{{ trader.top_trader_id }}</span>
+                                </div>
+                                <div class="t-stats">
+                                    <div class="t-stat">
+                                        <span class="t-stat-lbl">BALANCE</span>
+                                        <span class="t-stat-val">{{ formatNumber((trader.um_margin_balance || 0) + (trader.cm_margin_balance || 0)) }}</span>
+                                    </div>
+                                    <div class="t-stat">
+                                        <span class="t-stat-lbl">PNL</span>
+                                        <span class="t-stat-val" :class="trader.pnl >= 0 ? 'positive' : 'negative'">
+                                            {{ trader.pnl >= 0 ? '+' : '' }}{{ formatNumber(trader.pnl) }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <table class="pos-table" v-if="getTraderPositions(trader.top_trader_id).length > 0">
+                                <thead>
+                                    <tr>
+                                        <th>币种</th>
+                                        <th>仓位</th>
+                                        <th>方向</th>
+                                        <th>杠杆</th>
+                                        <th style="text-align: right;">未实现盈亏</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="pos in getTraderPositions(trader.top_trader_id).slice(0, 3)">
+                                        <td style="font-weight: 600;">{{ pos.symbol }}</td>
+                                        <td style="font-family: var(--font-mono);">{{ pos.position_amount }}</td>
+                                        <td>
+                                            <span class="side-tag" :class="pos.side === 'LONG' ? 'side-long' : 'side-short'">
+                                                {{ pos.side === 'LONG' ? 'LONG' : 'SHORT' }}
+                                            </span>
+                                        </td>
+                                        <td>{{ pos.leverage }}x</td>
+                                        <td style="text-align: right; font-family: var(--font-mono);" :class="pos.unrealized_pnl >= 0 ? 'positive' : 'negative'">
+                                            {{ pos.unrealized_pnl >= 0 ? '+' : '' }}{{ formatNumber(pos.unrealized_pnl) }}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <div v-if="getTraderPositions(trader.top_trader_id).length > 3" 
+                                 style="padding: 8px; text-align: center; font-size: 11px; cursor: pointer; color: var(--primary);"
+                                 @click="openDetail(trader.top_trader_id)">
+                                查看更多 {{ getTraderPositions(trader.top_trader_id).length - 3 }} 个持仓...
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card analysis-container">
+                    <div class="card-header">
+                        <div class="card-title">市场聚合分析 <span class="card-badge">按币种持仓排行</span></div>
+                    </div>
+                    <table class="main-table">
+                        <thead>
+                            <tr>
+                                <th>资产符号</th>
+                                <th>总持仓额</th>
+                                <th>多空资金分布</th>
+                                <th>做多/做空人数</th>
+                                <th>情绪倾向</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="(data, symbol) in sortedMarketAnalysis" :key="symbol">
+                                <td style="font-weight: bold; color: var(--primary);">{{ symbol }}</td>
+                                <td>$ {{ formatNumber(data.totalAmount) }}</td>
+                                <td>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <div class="progress-mini">
+                                            <div :style="{width: data.amountRatio + '%', background: 'var(--success)'}"></div>
+                                            <div :style="{width: (100 - data.amountRatio) + '%', background: 'var(--danger)'}"></div>
+                                        </div>
+                                        <span style="font-size: 10px;">{{ data.amountRatio }}% Long</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="positive">{{ data.longCount }}</span> / <span class="negative">{{ data.shortCount }}</span>
+                                </td>
+                                <td>
+                                    <span v-if="data.countRatio > 60" class="side-tag side-long">看涨为主</span>
+                                    <span v-else-if="data.countRatio < 40" class="side-tag side-short">看跌为主</span>
+                                    <span v-else class="side-tag" style="background: #f0f0f0; color: #666;">势均力敌</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </section>
+            </div>
+
+            <aside class="card">
+                <div class="card-header">
+                    <div class="card-title">实时操作流</div>
+                    <div class="card-badge" style="color: var(--success);">LIVE</div>
+                </div>
+                <div class="activity-scroll">
+                    <div v-for="item in activityFeed" :key="item.id" class="activity-node">
+                        <div class="act-header">
+                            <span class="act-trader">{{ item.trader_name || 'Unk' }}</span>
+                            <span class="act-time">{{ formatTime(item.trade_time) }}</span>
+                        </div>
+                        <div class="act-body">
+                            <div class="act-kv">币种: <span class="act-v">{{ item.symbol }}</span></div>
+                            <div class="act-kv">动作: 
+                                <span class="act-v" :class="item.side === 'BUY' ? 'positive' : 'negative'">
+                                    {{ item.side === 'BUY' ? 'BUY / 入场' : 'SELL / 出场' }}
+                                </span>
+                            </div>
+                            <div class="act-kv">价格: <span class="act-v">{{ formatNumber(item.price) }}</span></div>
+                            <div class="act-kv">数量: <span class="act-v">{{ item.amount }}</span></div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+
+        <div v-if="showAddModal" class="modal">
+            <div class="modal-body">
+                <h3 style="margin-bottom: 8px;">添加监控对象</h3>
+                <p style="font-size: 12px; color: var(--text-dis);">请输入目标交易员的 19 位数字 ID</p>
+                <input 
+                    type="text" 
+                    class="form-input"
+                    v-model="newTraderId" 
+                    placeholder="Trader ID..."
+                    @keyup.enter="addTrader"
+                >
+                <div style="display: flex; justify-content: flex-end; gap: 12px;">
+                    <button class="btn btn-outline" @click="showAddModal = false">取消</button>
+                    <button class="btn btn-primary" @click="addTrader">开始监控</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    
+    // 检查URL中的token参数（Google登录回调）
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlToken = urlParams.get('token');
+    if (urlToken) {
+        localStorage.setItem('token', urlToken);
+        // 清除URL中的token
+        window.history.replaceState({}, document.title, '/');
+    }
+    
+    const { createApp } = Vue;
+        createApp({
+            data() {
+                return {
+                    traders: [],
+                    allPositions: {},
+                    allTrades: [],
+                    stats: { total_traders: 0, total_positions: 0, total_trades: 0 },
+                    loading: false,
+                    currentUser: null,
+                    showAddModal: false,
+                    newTraderId: '',
+                    apiBase: '/api',
+                    positionCounts: {},
+                    showUpgradeModal: false,
+                    allPlans: [],
+                    usageStats: null,
+                    // 商业化新增字段
+                    isLoggedIn: false,
+                    showPaymentModal: false,
+                    userWallet: '',  // 用户钱包地址
+                    orderId: '',
+                    cryptoAddress: '',
+                    qrUrl: '',
+                    planInfo: null
+                }
+            },
+            computed: {
+                activityFeed() {
+                    return this.allTrades
+                        .map(trade => ({
+                            ...trade,
+                            trader_name: this.getTraderName(trade.top_trader_id),
+                            id: `${trade.timestamp}-${trade.symbol}-${trade.top_trader_id}`
+                        }))
+                        .slice(0, 50);
+                },
+                marketAnalysis() {
+                    const analysis = {};
+                    for (const traderId in this.allPositions) {
+                        const positions = this.allPositions[traderId];
+                        positions.forEach(pos => {
+                            const symbol = pos.symbol;
+                            if (!symbol) return;
+                            if (!analysis[symbol]) {
+                                analysis[symbol] = { totalAmount: 0, longAmount: 0, shortAmount: 0, longCount: 0, shortCount: 0 };
+                            }
+                            const amount = pos.position_amount || 0;
+                            analysis[symbol].totalAmount += Math.abs(amount);
+                            if (pos.side === 'LONG') {
+                                analysis[symbol].longAmount += Math.abs(amount);
+                                analysis[symbol].longCount++;
+                            } else if (pos.side === 'SHORT') {
+                                analysis[symbol].shortAmount += Math.abs(amount);
+                                analysis[symbol].shortCount++;
+                            }
+                        });
+                    }
+                    for (const symbol in analysis) {
+                        const data = analysis[symbol];
+                        data.amountRatio = data.totalAmount > 0 ? Math.round(data.longAmount / data.totalAmount * 100) : 50;
+                        data.countRatio = (data.longCount + data.shortCount) > 0 ? Math.round(data.longCount / (data.longCount + data.shortCount) * 100) : 50;
+                    }
+                    return analysis;
+                },
+                sortedMarketAnalysis() {
+                    return Object.keys(this.marketAnalysis)
+                        .sort((a, b) => this.marketAnalysis[b].totalAmount - this.marketAnalysis[a].totalAmount)
+                        .reduce((obj, key) => { obj[key] = this.marketAnalysis[key]; return obj; }, {});
+                }
+            },
+            mounted() {
+                // 检查登录状态
+                this.checkLoginState();
+                this.loadPlans();
+                
+                this.loadData().then(() => {
+                    this.loadStats();
+                    this.loadAllTrades();
+                    this.loadAllPositions();
+                });
+                setInterval(() => {
+                    this.loadStats();
+                    this.loadAllTrades();
+                    this.loadAllPositions();
+                }, 30000);
+            },
+            methods: {
+        logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            this.currentUser = null;
+            window.location.reload();
+        },
+                async checkLoginState() {
+                    // 检查URL中的token参数（Google登录回调）
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const urlToken = urlParams.get('token');
+                    if (urlToken) {
+                        localStorage.setItem('token', urlToken);
+                        // 清除URL中的token参数
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    }
+                    
+                    // 获取保存的token
+                    const token = localStorage.getItem('token');
+                    if (!token) {
+                        console.log('未登录，加载样例数据');
+                        this.isLoggedIn = false;
+                        this.loadSampleData();  // ✅ 加载样例数据
+                        return;
+                    }
+                    
+                    // 验证token并获取用户信息
+                    try {
+                        const res = await fetch(`/api/auth/me`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        const data = await res.json();
+                        
+                        if (data.success) {
+                            this.currentUser = data.user;
+                            this.usageStats = data.usage;
+                            this.isLoggedIn = true;
+                            console.log('已登录:', this.currentUser.username);
+                        } else {
+                            // Token无效，清除
+                            console.log('Token无效，清除登录状态');
+                            localStorage.removeItem('token');
+                            localStorage.removeItem('user');
+                            this.currentUser = null;
+                            this.isLoggedIn = false;
+                            this.loadSampleData();  // ✅ 加载样例数据
+                        }
+                    } catch (err) {
+                        console.error('验证登录状态失败:', err);
+                        localStorage.removeItem('token');
+                        this.currentUser = null;
+                        this.isLoggedIn = false;
+                        this.loadSampleData();  // ✅ 加载样例数据
+                    }
+                },
+                async loadPlans() {
+                    try {
+                        const res = await fetch('/api/pricing/plans');
+                        const data = await res.json();
+                        if (data.success) this.allPlans = data.data;
+                    } catch (err) { console.error('加载套餐失败:', err); }
+                },
+                async loadUsageStats() {
+                    const token = localStorage.getItem('token');
+                    if (!token) return;
+                    try {
+                        const res = await fetch('/api/pricing/usage', {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        const data = await res.json();
+                        if (data.success) this.usageStats = data.data;
+                    } catch (err) { console.error('加载使用量失败:', err); }
+                },
+                async upgradePlan(planCode) {
+                    const token = localStorage.getItem('token');
+                    if (!token) { alert('请先登录'); return; }
+                    
+                    // ✅ 升级到年付版：打开支付弹窗
+                    if (planCode === 'annual') {
+                        this.showUpgradeModal = false;
+                        this.showPaymentModal = true;
+                        return;
+                    }
+                    
+                    // 降级到免费版：仅演示模式允许
+                    if (planCode === 'free') {
+                        if (!confirm('确定要降级到免费版？\n\n注意：这将限制您只能使用2个交易员')) {
+                            return;
+                        }
+                    }
+                    
+                    // 调用升级API（演示模式）
+                    try {
+                        const res = await fetch('/api/pricing/upgrade', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify({ plan_code: planCode })
+                        });
+                        const data = await res.json();
+                        
+                        if (data.success) {
+                            let msg = '✅ ' + data.message;
+                            if (data.demo_mode) {
+                                msg += '\n\n⚠️  演示模式：直接升级（生产环境需支付）';
+                            }
+                            alert(msg);
+                            this.showUpgradeModal = false;
+                            await this.checkLoginState();
+                        } else {
+                            if (data.payment_required) {
+                                // 需要支付流程
+                                alert('💳 ' + data.error + '\n\n' + (data.hint || ''));
+                                this.showUpgradeModal = false;
+                                this.showPaymentModal = true;
+                            } else {
+                                alert('❌ 升级失败：' + data.error);
+                            }
+                        }
+                    } catch (err) { 
+                        alert('❌ 网络错误：' + err.message); 
+                    }
+                },
+                async loadSampleData() {
+                    // ✅ 未登录时加载样例数据
+                    try {
+                        const res = await fetch('/api/sample-data');
+                        const data = await res.json();
+                        if (data.success) {
+                            const sampleTrader = {
+                                ...data.trader,
+                                _isSample: true  // 标记为样例数据
+                            };
+                            this.traders = [sampleTrader];
+                            
+                            // 加载样例持仓
+                            this.allPositions[data.trader.top_trader_id] = data.positions;
+                            this.positionCounts[data.trader.top_trader_id] = data.positions.length;
+                            
+                            // 加载样例交易
+                            this.allTrades = data.trades.map(t => ({
+                                ...t,
+                                top_trader_id: data.trader.top_trader_id
+                            }));
+                        }
+                    } catch (err) {
+                        console.error('加载样例数据失败:', err);
+                    }
+                },
+                async createPaymentOrder() {
+                    // ✅ 使用钱包地址替代邮箱
+                    if (!this.userWallet || this.userWallet.length < 10) {
+                        alert('请输入有效的付款钱包地址');
+                        return;
+                    }
+                    
+                    const token = localStorage.getItem('token');
+                    if (!token) {
+                        alert('请先登录');
+                        return;
+                    }
+                    
+                    try {
+                        const res = await fetch('/api/payment/create', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify({
+                                user_wallet: this.userWallet,
+                                plan_code: 'annual'
+                            })
+                        });
+                        
+                        const data = await res.json();
+                        if (data.success) {
+                            this.orderId = data.order_id;
+                            this.cryptoAddress = data.crypto_address;
+                            this.qrUrl = data.qr_url;
+                            this.planInfo = data.plan;
+                            
+                            alert(`订单创建成功！\n\n订单号: ${data.order_id}\n金额: $${data.amount} USDT\n\n转账后系统将自动确认`);
+                        } else {
+                            alert('创建订单失败: ' + data.error);
+                        }
+                    } catch (err) {
+                        alert('网络错误: ' + err.message);
+                    }
+                },
+                copyAddress() {
+                    // ✅ 复制钱包地址
+                    navigator.clipboard.writeText(this.cryptoAddress).then(() => {
+                        alert('地址已复制！');
+                    }).catch(() => {
+                        // 备用方法
+                        const textarea = document.createElement('textarea');
+                        textarea.value = this.cryptoAddress;
+                        document.body.appendChild(textarea);
+                        textarea.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(textarea);
+                        alert('地址已复制！');
+                    });
+                },
+                openTelegramSettings() {
+                    // ✅ Telegram通知设置 - 检测套餐
+                    if (!this.currentUser) {
+                        alert('请先登录');
+                        window.location.href = '/login.html';
+                        return;
+                    }
+                    
+                    // 检查是否是免费版
+                    if (this.currentUser.subscription_plan === 'free') {
+                        const msg = 'Telegram通知功能仅限年付版用户使用\n\n立即升级？\n• $12.99/年\n• 100个交易员\n• Telegram通知不限\n• 优先客户支持';
+                        if (confirm(msg)) {
+                            this.showPaymentModal = true;
+                        }
+                    } else {
+                        // 付费版用户 - 打开Telegram设置（TODO: 实现设置页面）
+                        alert('Telegram通知设置功能开发中...\n\n请联系管理员配置Telegram Bot');
+                    }
+                },
+                async loadData() {
+                    this.loading = true;
+                    const token = localStorage.getItem('token');
+                    if (!token) {
+                        console.log('未登录，无法加载交易员列表');
+                        this.traders = [];
+                        this.loading = false;
+                        return;
+                    }
+                    
+                    try {
+                        const res = await fetch(`${this.apiBase}/traders`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        
+                        if (res.status === 401) {
+                            // Token失效，清除登录状态
+                            localStorage.removeItem('token');
+                            this.currentUser = null;
+                            this.traders = [];
+                        } else {
+                            const data = await res.json();
+                            if (data.success) this.traders = data.data;
+                        }
+                    } catch (err) { console.error(err); }
+                    this.loading = false;
+                },
+                async loadStats() {
+                    try {
+                        const res = await fetch(`${this.apiBase}/stats`);
+                        const data = await res.json();
+                        if (data.success) this.stats = data.data;
+                    } catch (err) { console.error(err); }
+                },
+                async loadAllPositions() {
+                    const token = localStorage.getItem('token');
+                    if (!token) return;
+                    
+                    try {
+                        for (const trader of this.traders) {
+                            const res = await fetch(`${this.apiBase}/positions/${trader.top_trader_id}`, {
+                                headers: { 'Authorization': `Bearer ${token}` }
+                            });
+                            if (res.status === 401) continue;
+                            const data = await res.json();
+                            if (data.success) {
+                                this.allPositions[trader.top_trader_id] = data.data;
+                                this.positionCounts[trader.top_trader_id] = data.data.length;
+                            }
+                        }
+                    } catch (err) { console.error(err); }
+                },
+                async loadAllTrades() {
+                    const token = localStorage.getItem('token');
+                    if (!token) return;
+                    
+                    try {
+                        const promises = this.traders.map(trader =>
+                            fetch(`${this.apiBase}/trades/${trader.top_trader_id}?limit=30`, {
+                                headers: { 'Authorization': `Bearer ${token}` }
+                            })
+                                .then(res => res.status === 401 ? null : res.json())
+                                .then(data => data && data.success ? data.data.map(t => ({...t, top_trader_id: trader.top_trader_id})) : [])
+                        );
+                        const results = await Promise.all(promises);
+                        this.allTrades = results.flat().sort((a, b) => {
+                        const t1 = Date.parse(a.trade_time.replace(' ', 'T'));
+                        const t2 = Date.parse(b.trade_time.replace(' ', 'T'));
+                        return t2 - t1;
+                    });
+                    } catch (err) { console.error(err); }
+                },
+                getPositionCount(traderId) { return this.positionCounts[traderId] || 0; },
+                getTraderPositions(traderId) {
+                    return (this.allPositions[traderId] || []).sort((a, b) => (b.position_value || 0) - (a.position_value || 0));
+                },
+                getTraderName(traderId) {
+                    const trader = this.traders.find(t => t.top_trader_id === traderId);
+                    return trader ? trader.trader_name : '未知';
+                },
+                openDetail(traderId) { 
+                    // ✅ 检查是否是样例数据
+                    const trader = this.traders.find(t => t.top_trader_id === traderId);
+                    if (trader && trader._isSample) {
+                        if (confirm('查看完整数据需要登录\n\n免费注册即可监控2个交易员\n升级年付版可监控100个\n\n是否前往登录？')) {
+                            window.location.href = '/login.html';
+                        }
+                        return;
+                    }
+                    
+                    // ✅ 检查登录状态
+                    if (!this.isLoggedIn) {
+                        if (confirm('查看详情需要登录，是否前往登录？')) {
+                            window.location.href = '/login.html';
+                        }
+                        return;
+                    }
+                    
+                    window.open(`detail.html?id=${traderId}`, '_blank'); 
+                },
+                async refreshData() {
+                    this.loading = true;
+                    await Promise.all([this.loadData(), this.loadStats(), this.loadAllTrades(), this.loadAllPositions()]);
+                    this.loading = false;
+                },
+                async addTrader() {
+                    if (!this.newTraderId.trim()) return;
+                    
+                    // ✅ 登录检查
+                    const token = localStorage.getItem('token');
+                    if (!token) {
+                        alert('添加交易员需要登录\n\n免费版可添加2个交易员\n年付版可添加100个');
+                        window.location.href = '/login.html';
+                        return;
+                    }
+                    
+                    try {
+                        const res = await fetch(`${this.apiBase}/traders`, {
+                            method: 'POST',
+                            headers: { 
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify({ trader_id: this.newTraderId })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                            let msg = '✅ 添加成功';
+                            if (data.demo_mode) {
+                                msg += '\n\n⚠️  当前为演示模式，使用模拟数据';
+                            }
+                            alert(msg);
+                            this.showAddModal = false;
+                            this.newTraderId = '';
+                            await this.loadUsageStats();
+                            setTimeout(() => this.refreshData(), 1000);
+                        } else {
+                            if (res.status === 401 || (data.error && data.error.includes('登录'))) {
+                                alert('请先登录');
+                                window.location.href = '/login.html';
+                            } else if (res.status === 503) {
+                                // ✅ 网络错误（Binance API不可达）
+                                let msg = '❌ 无法连接到Binance服务器\n\n';
+                                if (data.hint) {
+                                    msg += data.hint;
+                                }
+                                alert(msg);
+                            } else if (data.quota_exceeded) {
+                                // ✅ 配额超限，显示付费提示
+                                const current = data.current || 0;
+                                const limit = data.limit || 2;
+                                
+                                if (limit === 2) {
+                                    // 免费版用户
+                                    const msg = `免费版最多添加${limit}个交易员（已有${current}个）\n\n升级到年付版：\n• $12.99/年\n• 100个交易员\n• Telegram通知不限\n\n是否立即升级？`;
+                                    if (confirm(msg)) {
+                                        this.showAddModal = false;
+                                        this.showPaymentModal = true;  // ✅ 打开支付弹窗
+                                    }
+                                } else {
+                                    alert(`已达到交易员数量上限 (${current}/${limit})`);
+                                }
+                            } else {
+                                alert('添加失败：' + data.error);
+                            }
+                        }
+                    } catch (err) { alert('网络错误：' + err.message); }
+                },
+                formatNumber(num) {
+                    if (!num) return '0.00';
+                    const n = parseFloat(num);
+                    if (Math.abs(n) >= 10000) return (n / 1000).toFixed(1) + 'k';
+                    return n.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                },
+                formatTime(timeStr) {
+                    if (!timeStr) return '';
+                    const date = new Date(timeStr+ ' UTC');
+                    // 转为本地时间字符串
+                        date.toLocaleString('zh-CN', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                    });
+                    const now = new Date();
+                    const diff = (now - date) / 1000;
+                    if (diff < 60) return '刚刚';
+                    if (diff < 3600) return Math.floor(diff / 60) + 'm前';
+                    if (diff < 86400) return Math.floor(diff / 3600) + 'h前';
+                    return date.toLocaleDateString();
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

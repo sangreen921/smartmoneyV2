@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>交易员详情 - Smart Money</title>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+:root{
+--bg:#f5f7fa;
+--card:#fff;
+--border:#e8e8e8;
+--text:#1a1a1a;
+--sub:#666;
+--success:#16a34a;
+--danger:#dc2626;
+--primary:#1677ff;
+--shadow:0 2px 8px rgba(0,0,0,0.04);
+--radius:8px;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+
+body{
+font-family:'Noto Sans SC',sans-serif;
+background:var(--bg);
+font-size:13px;
+color:var(--text);
+}
+
+.container{
+max-width:1400px;
+margin:auto;
+padding:24px;
+}
+
+.card{
+background:var(--card);
+border:1px solid var(--border);
+border-radius:var(--radius);
+box-shadow:var(--shadow);
+padding:18px;
+margin-bottom:18px;
+}
+
+.header{
+display:flex;
+justify-content:space-between;
+align-items:center;
+}
+
+.trader-info{
+display:flex;
+align-items:center;
+gap:16px;
+}
+
+.avatar{
+width:60px;
+height:60px;
+border-radius:50%;
+overflow:hidden;
+background:linear-gradient(135deg,#667eea,#764ba2);
+display:flex;
+align-items:center;
+justify-content:center;
+color:#fff;
+font-size:22px;
+font-weight:600;
+}
+
+.avatar img{
+width:100%;
+height:100%;
+object-fit:cover;
+}
+
+.actions button{margin-left:8px}
+
+button{
+padding:6px 12px;
+border-radius:6px;
+border:1px solid var(--border);
+background:#fff;
+cursor:pointer;
+font-size:12px;
+}
+
+button.primary{
+background:var(--primary);
+color:#fff;
+border:none;
+}
+
+button.danger{
+background:var(--danger);
+color:#fff;
+border:none;
+}
+
+.grid{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+gap:12px;
+}
+
+.metric{
+background:#fafafa;
+padding:8px 10px;
+border-radius:6px;
+}
+
+.metric-label{font-size:11px;color:var(--sub)}
+.metric-value{font-size:15px;font-weight:600}
+
+table{
+width:100%;
+border-collapse:collapse;
+font-size:12px;
+}
+
+th,td{
+padding:8px;
+border-bottom:1px solid var(--border);
+}
+
+th{background:#fafafa;text-align:left}
+
+.positive{color:var(--success)}
+.negative{color:var(--danger)}
+
+.empty{text-align:center;padding:30px;color:var(--sub)}
+.loading{text-align:center;padding:60px}
+</style>
+</head>
+
+<body>
+<div id="app">
+<div class="container">
+
+<div v-if="loading" class="loading">加载中...</div>
+
+<template v-else>
+
+<div class="card">
+
+<div class="header">
+<div class="trader-info">
+<div class="avatar">
+<img v-if="trader.avatar_url" :src="trader.avatar_url">
+<span v-else>{{ (trader.trader_name||'?')[0] }}</span>
+</div>
+
+<div>
+<div style="font-size:16px;font-weight:600">
+{{ trader.trader_name || '未知交易员' }}
+</div>
+<div style="font-size:11px;color:var(--sub)">
+ID: {{ trader.top_trader_id }}
+</div>
+</div>
+</div>
+
+<div class="actions">
+<button @click="window.close()">关闭</button>
+<button @click="refresh">刷新</button>
+<button class="danger" @click="deleteTrader">删除</button>
+</div>
+</div>
+
+<!-- 🔔 通知 -->
+<div style="margin-top:14px">
+<input v-model="notification.chatId" placeholder="Telegram Chat ID" style="padding:6px;border:1px solid var(--border);border-radius:6px;width:200px">
+<label style="margin-left:8px">
+<input type="checkbox" v-model="notification.notifyBalance"> 余额变动通知
+</label>
+<label style="margin-left:8px">
+<input type="checkbox" v-model="notification.notifyTrades"> 新交易通知
+</label>
+<button class="primary" @click="saveNotification">保存</button>
+<button @click="testNotification">测试</button>
+<button v-if="notificationExists" @click="deleteNotification">删除订阅</button>
+<span v-if="!telegramEnabled" style="color:var(--danger);margin-left:8px">
+Telegram未启用
+</span>
+</div>
+
+</div>
+
+<!-- 基础信息 -->
+<div class="card">
+<div class="grid">
+
+<div class="metric">
+<div class="metric-label">账户总额</div>
+<div class="metric-value">
+{{ ((trader.um_margin_balance||0)+(trader.cm_margin_balance||0)).toFixed(0) }}
+</div>
+</div>
+
+<div class="metric">
+<div class="metric-label">U本位</div>
+<div class="metric-value">{{ (trader.um_margin_balance||0).toFixed(0) }}</div>
+</div>
+
+<div class="metric">
+<div class="metric-label">币本位</div>
+<div class="metric-value">{{ (trader.cm_margin_balance||0).toFixed(0) }}</div>
+</div>
+
+<div class="metric">
+<div class="metric-label">订阅人数</div>
+<div class="metric-value">{{ trader.subscribers || 0 }}</div>
+</div>
+
+<div class="metric">
+<div class="metric-label">活跃天数</div>
+<div class="metric-value">{{ trader.days_active || 0 }}</div>
+</div>
+
+<div class="metric">
+<div class="metric-label">ROI</div>
+<div class="metric-value" :class="trader.roi>=0?'positive':'negative'">
+{{ (trader.roi||0).toFixed(2) }}
+</div>
+</div>
+
+<div class="metric">
+<div class="metric-label">累计盈亏</div>
+<div class="metric-value" :class="trader.pnl>=0?'positive':'negative'">
+{{ trader.pnl || 0 }}
+</div>
+</div>
+
+<div class="metric">
+<div class="metric-label">净转入</div>
+<div class="metric-value">{{ trader.net_transfer || 0 }}</div>
+</div>
+
+</div>
+</div>
+
+<!-- 持仓完整恢复 -->
+<div class="card">
+<h3 style="margin-bottom:10px;font-size:14px">当前持仓</h3>
+
+<table v-if="positions.length">
+<thead>
+<tr>
+<th>币种</th>
+<th>方向</th>
+<th>杠杆</th>
+<th>入场价</th>
+<th>当前价</th>
+<th>持仓量</th>
+<th>持仓价值</th>
+<th>未实现盈亏</th>
+<th>ROE</th>
+</tr>
+</thead>
+<tbody>
+<tr v-for="p in positions" :key="p.symbol+p.side">
+<td>{{ p.symbol }}</td>
+<td :class="p.side==='LONG'?'positive':'negative'">
+{{ p.side==='LONG'?'做多':'做空' }}
+</td>
+<td>{{ p.leverage }}x</td>
+<td>{{ p.entry_price }}</td>
+<td>{{ p.mark_price }}</td>
+<td>{{ p.position_amount }}</td>
+<td>{{ p.position_value }}</td>
+<td :class="p.unrealized_pnl>=0?'positive':'negative'">
+{{ p.unrealized_pnl }}
+</td>
+<td :class="p.roe>=0?'positive':'negative'">
+{{ p.roe }}
+</td>
+</tr>
+</tbody>
+</table>
+
+<div v-else class="empty">暂无持仓</div>
+</div>
+
+<!-- 交易记录完整恢复 -->
+<div class="card">
+<h3 style="margin-bottom:10px;font-size:14px">交易记录</h3>
+
+<table v-if="trades.length">
+<thead>
+<tr>
+<th>时间</th>
+<th>币种</th>
+<th>方向</th>
+<th>价格</th>
+<th>数量</th>
+<th>交易额</th>
+</tr>
+</thead>
+<tbody>
+<tr v-for="t in trades" :key="t.timestamp">
+<td>{{ formatLocalTime(t.trade_time) }}</td>
+<td>{{ t.symbol }}</td>
+<td :class="t.side==='BUY'?'positive':'negative'">
+{{ t.side==='BUY'?'买入':'卖出' }}
+</td>
+<td>{{ t.price }}</td>
+<td>{{ t.amount }}</td>
+<td>{{ (t.price*t.amount).toFixed(2) }}</td>
+</tr>
+</tbody>
+</table>
+
+<div v-else class="empty">暂无交易记录</div>
+</div>
+
+<!-- transfers完整恢复 -->
+<div class="card">
+<h3 style="margin-bottom:10px;font-size:14px">净转入记录</h3>
+
+<table v-if="transfers.length">
+<thead>
+<tr>
+<th>时间</th>
+<th>类型</th>
+<th>金额</th>
+<th>余额变化</th>
+</tr>
+</thead>
+<tbody>
+<tr v-for="t in transfers" :key="t.id">
+<td>{{ formatLocalTime(t.detected_at) }}</td>
+<td>{{ t.transfer_type==='deposit'?'充值':'提现' }}</td>
+<td :class="t.transfer_type==='deposit'?'positive':'negative'">
+{{ t.amount }}
+</td>
+<td>
+{{ t.balance_before }} → {{ t.balance_after }}
+</td>
+</tr>
+</tbody>
+</table>
+
+<div v-else class="empty">暂无转账记录</div>
+</div>
+
+</template>
+</div>
+</div>
+
+<script>
+const { createApp } = Vue;
+
+createApp({
+data(){
+return{
+traderId:'',
+trader:{},
+positions:[],
+trades:[],
+transfers:[],
+notification:{chatId:'',notifyBalance:true,notifyTrades:true},
+notificationExists:false,
+telegramEnabled:true,
+loading:true
+}
+},
+
+mounted(){
+const token=localStorage.getItem('token');
+if(!token){location.href='/login.html';return;}
+
+const params=new URLSearchParams(location.search);
+this.traderId=params.get('id');
+if(!this.traderId){location.href='/';return;}
+
+this.loadData();
+},
+
+methods:{
+formatLocalTime(t){
+if(!t)return'-';
+return new Date(t+' UTC').toLocaleString('zh-CN',{hour12:false});
+},
+
+async safeFetch(url){
+try{
+const token=localStorage.getItem('token');
+const res=await fetch(url,{headers:{'Authorization':`Bearer ${token}`}});
+if(res.status===401){localStorage.removeItem('token');location.href='/login.html';return null;}
+if(!res.ok)return null;
+const type=res.headers.get('content-type');
+if(!type||!type.includes('application/json'))return null;
+return await res.json();
+}catch(e){return null;}
+},
+
+async loadData(){
+this.loading=true;
+
+const [
+traderData,
+posData,
+tradesData,
+transfersData,
+notificationData
+]=await Promise.all([
+this.safeFetch(`/api/traders/${this.traderId}`),
+this.safeFetch(`/api/positions/${this.traderId}`),
+this.safeFetch(`/api/trades/${this.traderId}?limit=100`),
+this.safeFetch(`/api/transfers/${this.traderId}`),
+this.safeFetch(`/api/notifications/${this.traderId}`)
+]);
+
+if(traderData?.success)this.trader=traderData.data;
+if(posData?.success)this.positions=posData.data;
+if(tradesData?.success)this.trades=tradesData.data;
+if(transfersData?.success)this.transfers=transfersData.data||[];
+
+if(notificationData){
+if(notificationData.success && notificationData.data){
+const d=notificationData.data;
+this.notification={
+chatId:d.telegram_chat_id||'',
+notifyBalance:d.notify_balance_change===1,
+notifyTrades:d.notify_new_trades===1
+};
+this.notificationExists=true;
+}else if(notificationData.error && notificationData.error.includes('未启用')){
+this.telegramEnabled=false;
+}
+}
+
+this.loading=false;
+},
+
+async refresh(){await this.loadData();},
+
+async deleteTrader(){
+if(!confirm('确定删除？'))return;
+const token=localStorage.getItem('token');
+await fetch(`/api/traders/${this.traderId}`,{
+method:'DELETE',
+headers:{'Authorization':`Bearer ${token}`}
+});
+location.href='/';
+},
+
+async saveNotification(){
+if(!this.notification.chatId){alert('请输入Chat ID');return;}
+const token=localStorage.getItem('token');
+const res=await fetch(`/api/notifications/${this.traderId}`,{
+method:'POST',
+headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+body:JSON.stringify(this.notification)
+});
+const data=await res.json();
+if(data.success){
+this.notificationExists=true;
+alert('保存成功');
+}else{
+alert(data.error||'保存失败');
+}
+},
+
+async testNotification(){
+const token=localStorage.getItem('token');
+await fetch(`/api/notifications/${this.traderId}/test`,{
+method:'POST',
+headers:{'Authorization':`Bearer ${token}`}
+});
+alert('测试消息已发送');
+},
+
+async deleteNotification(){
+const token=localStorage.getItem('token');
+await fetch(`/api/notifications/${this.traderId}`,{
+method:'DELETE',
+headers:{'Authorization':`Bearer ${token}`}
+});
+this.notificationExists=false;
+alert('已删除');
+}
+}
+}).mount('#app');
+</script>
+
+</body>
+</html>
